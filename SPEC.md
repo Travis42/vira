@@ -62,3 +62,19 @@ New repo, no callers, no shared state. Nothing existing breaks.
 
 ## 8. Risks
 Wikisource markup oddities (poems/tables) → cleaner may need per-case rules; LLM JSON flakiness → retry+solo pass; archaic spellings may gloss imperfectly → accepted v1.
+
+
+## 9. Addendum A (2026-11-25): explicit chapter pages + per-work data (Eça support)
+
+Recon findings (verified live against the API):
+- Target book: Eça de Queirós, *A cidade e as serras* (1901). Text pages: subpages of "A Cidade e as Serras" (capitalized tree): /Advertencia and /I ... /XVI. Each chapter page wikitext is a ProofreadPage transclusion (e.g. /I = <pages index="A cidade e as serras (1901).pdf" from=15 to=36 header=1/>); the existing clean_html path already extracts these.
+- Problem: the work root "A Cidade e as Serras" REDIRECTS to the portal page "A cidade e as serras" (lowercase) which contains no chapter links, so subpage enumeration finds nothing.
+
+Changes:
+1. book.json gains optional "chapter_pages": [list of full page titles]. When present, fetch uses this list directly (no link enumeration; keep the existing enumeration path untouched for when it is absent). Each listed page: fetch wikitext; if it contains <pages, fetch prop=text and use clean_html; else clean_wikitext. Chapter entries keep current shape {title, url, paras}.
+2. Per-work data state: move data/chapters.json and data/glossary.json under data/<slug>/ where slug is derived from the config (e.g. slugify of "work" or of the chapter_pages root, sanitized: lowercase, non-alphanumerics -> "-"). Migrating the existing Chagas data is NOT required — regenerating is cheap; just make the new layout consistent and update gloss/build/fetch to read/write the per-work paths. book.json stays at repo root.
+3. Update book.json for Eça v1: {"work":"A Cidade e as Serras","api":"https://pt.wikisource.org/w/api.php","lang":"pt","gloss_lang":"en","chapter_pages":["A Cidade e as Serras/I","A Cidade e as Serras/II","A Cidade e as Serras/III"],"model":"deepseek-v4.1-flash","fallback_model":"glm-5.3-flash","batch_size":120}. "chapters" key may be dropped or kept ignored for this book.
+4. Tests: unit for slug derivation; unit for explicit chapter_pages mode (mock api responses incl. a <pages> page); regression that enumeration mode still works when chapter_pages absent; integration: build from fixture produces dist/index.html.
+5. Run: fetch gloss build; pytest -q green; report coverage % and dist size; commit.
+
+Non-goals unchanged. LLM provider rules unchanged (ollama /v1/chat/completions, deepseek-v4.1-flash, NEVER OpenRouter).
