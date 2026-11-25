@@ -22,10 +22,11 @@ def test_integration_build_coverage(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "book.json").write_text(json.dumps(
         {"work": "W", "model": "m", "fallback_model": "f"}))
-    (tmp_path / "data").mkdir()
-    (tmp_path / "data" / "chapters.json").write_text(
+    d = tmp_path / "data" / "w"
+    d.mkdir(parents=True)
+    (d / "chapters.json").write_text(
         json.dumps(CHAPTERS, ensure_ascii=False))
-    (tmp_path / "data" / "glossary.json").write_text(
+    (d / "glossary.json").write_text(
         json.dumps(GLOSS, ensure_ascii=False))
     import vira.build
     vira.build.run()

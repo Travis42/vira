@@ -1,1 +1,1 @@
-{"work":"Os descobrimentos portuguezes e os de Colombo","api":"https://pt.wikisource.org/w/api.php","lang":"pt","gloss_lang":"en","chapters":["Capítulo I"],"model":"deepseek-v4.1-flash","fallback_model":"glm-5.3-flash","batch_size":120}
+{"work":"A Cidade e as Serras","api":"https://pt.wikisource.org/w/api.php","lang":"pt","gloss_lang":"en","chapter_pages":["A Cidade e as Serras/I","A Cidade e as Serras/II","A Cidade e as Serras/III"],"model":"deepseek-v4.1-flash","fallback_model":"glm-5.3-flash","batch_size":120}

@@ -6,7 +6,7 @@ import time
 
 import requests
 
-from .fetch import load_cfg, tokens
+from .fetch import data_paths, load_cfg, tokens
 
 # api.ollama.com 301-redirects here; requests downgrades POST->GET on 301, hence the canonical host
 ENDPOINT = "https://ollama.com/v1/chat/completions"
@@ -94,7 +94,8 @@ def run():
     key = api_key()
     if not key:
         sys.exit("OLLAMA_API_KEY not set")
-    with open("data/chapters.json", encoding="utf-8") as f:
+    ch_path, gl_path = data_paths(cfg)
+    with open(ch_path, encoding="utf-8") as f:
         chapters = json.load(f)["chapters"]
     vocab = set()
     for ch in chapters:
@@ -102,7 +103,7 @@ def run():
             vocab.update(tokens(p["text"]))
     words = sorted(vocab)
     try:
-        with open("data/glossary.json", encoding="utf-8") as f:
+        with open(gl_path, encoding="utf-8") as f:
             gloss = json.load(f)
     except FileNotFoundError:
         gloss = {}
@@ -113,13 +114,13 @@ def run():
         batch = todo[i:i + bs]
         print(f"batch {i // bs + 1}/{(len(todo) + bs - 1) // bs} ({len(batch)} words)")
         gloss.update(translate_batch(batch, cfg, key))
-        with open("data/glossary.json", "w", encoding="utf-8") as f:
+        with open(gl_path, "w", encoding="utf-8") as f:
             json.dump(gloss, f, ensure_ascii=False, indent=1)
     # solo pass for stragglers
     for w in [w for w in words if w not in gloss]:
         got = translate_batch([w], cfg, key)
         gloss.update(got)
-        with open("data/glossary.json", "w", encoding="utf-8") as f:
+        with open(gl_path, "w", encoding="utf-8") as f:
             json.dump(gloss, f, ensure_ascii=False, indent=1)
     missing = [w for w in words if w not in gloss]
     print(f"coverage: total {len(words)}, glossed {len(words) - len(missing)}, missing {len(missing)}")
@@ -127,10 +128,11 @@ def run():
         print("missing:", ", ".join(missing[:50]))
 
 
-def coverage(chapters_path="data/chapters.json", glossary_path="data/glossary.json"):
-    with open(chapters_path, encoding="utf-8") as f:
+def coverage(chapters_path=None, glossary_path=None):
+    ch_path, gl_path = data_paths()
+    with open(chapters_path or ch_path, encoding="utf-8") as f:
         chapters = json.load(f)["chapters"]
-    with open(glossary_path, encoding="utf-8") as f:
+    with open(glossary_path or gl_path, encoding="utf-8") as f:
         gloss = json.load(f)
     vocab = set()
     for ch in chapters:

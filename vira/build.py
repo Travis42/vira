@@ -1,6 +1,6 @@
 import json
 
-from .fetch import load_cfg
+from .fetch import data_paths, load_cfg
 from .gloss import coverage
 
 TEMPLATE = r"""<!DOCTYPE html>
@@ -128,14 +128,16 @@ def embed(obj):
 
 def run():
     cfg = load_cfg()
-    with open("data/chapters.json", encoding="utf-8") as f:
+    ch_path, gl_path = data_paths(cfg)
+    with open(ch_path, encoding="utf-8") as f:
         chapters = json.load(f)
-    with open("data/glossary.json", encoding="utf-8") as f:
+    with open(gl_path, encoding="utf-8") as f:
         glossary = json.load(f)
-    hit, total = coverage()
+    hit, total = coverage(ch_path, gl_path)
     print(f"coverage: {hit}/{total} ({100 * hit / total:.1f}%)")
+    title = " · ".join([cfg["work"]] + [str(cfg[k]) for k in ("author", "year") if cfg.get(k)])
     html = (TEMPLATE
-            .replace("__TITLE__", f"{cfg['work']} · Manuel Pinheiro Chagas · 1881")
+            .replace("__TITLE__", title)
             .replace("__SOURCE__", chapters["chapters"][0]["url"])
             .replace("__CHAPTERS__", embed(chapters))
             .replace("__GLOSSARY__", embed(glossary)))

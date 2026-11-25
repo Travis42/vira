@@ -13,6 +13,17 @@ def load_cfg(path="book.json"):
         return json.load(f)
 
 
+def work_slug(cfg):
+    return re.sub(r"[^a-z0-9]+", "-", cfg["work"].lower()).strip("-")
+
+
+def data_paths(cfg=None):
+    """(chapters_path, glossary_path) under data/<slug>/ for the configured work."""
+    cfg = cfg or load_cfg()
+    d = f"data/{work_slug(cfg)}"
+    return f"{d}/chapters.json", f"{d}/glossary.json"
+
+
 def api_get(api, **params):
     for attempt in range(4):
         r = requests.get(api, params={"action": "parse", "format": "json", **params},
@@ -131,33 +142,46 @@ def clean_html(html):
     return p.items()
 
 
+def chapter_pages(cfg):
+    """Page titles to fetch: explicit chapter_pages list, else subpage enumeration."""
+    if cfg.get("chapter_pages"):
+        return list(cfg["chapter_pages"])
+    work = api_get(cfg["api"], page=cfg["work"], prop="wikitext")["parse"]["wikitext"]["*"]
+    wanted = cfg["chapters"]
+    out = []
+    for link, display in subpage_links(work):
+        if wanted != ["all"] and not any(re.match(p + r"\b", display) or re.match(p + r"\b", link)
+                                         for p in wanted):
+            continue
+        out.append(link)
+    return out
+
+
+def page_paras(api, link):
+    """Fetch one page: rendered HTML if ProofreadPage <pages>, else cleaned wikitext."""
+    wikitext = api_get(api, page=link, prop="wikitext")["parse"]["wikitext"]["*"]
+    # page-transcluded chapters (ProofreadPage <pages .../>) have no wikitext body
+    if re.search(r"<pages\s", wikitext):
+        html = api_get(api, page=link, prop="text")["parse"]["text"]["*"]
+        return clean_html(html)
+    return clean_wikitext(wikitext)
+
+
 def run(refresh=False):
     cfg = load_cfg()
+    ch_path, _ = data_paths(cfg)
     try:
-        with open("data/chapters.json", encoding="utf-8") as f:
+        with open(ch_path, encoding="utf-8") as f:
             data = json.load(f)
     except FileNotFoundError:
         data = {"chapters": []}
     have = {c["title"]: c for c in data["chapters"]}
-    work = api_get(cfg["api"], page=cfg["work"], prop="wikitext")["parse"]["wikitext"]["*"]
-    links = subpage_links(work)
-    wanted = cfg["chapters"]
-    for link, display in links:
-        if wanted != ["all"] and not any(re.match(p + r"\b", display) or re.match(p + r"\b", link)
-                                         for p in wanted):
-            continue
+    for link in chapter_pages(cfg):
         if link in have and not refresh:
             print(f"cached: {link}")
             continue
         print(f"fetch: {link}")
-        page = api_get(cfg["api"], page=link, prop="wikitext")["parse"]
-        wikitext = page["wikitext"]["*"]
-        # page-transcluded chapters (ProofreadPage <pages .../>) have no wikitext body
-        if re.search(r"<pages\s", wikitext):
-            html = api_get(cfg["api"], page=link, prop="text")["parse"]["text"]["*"]
-            paras = clean_html(html)
-        else:
-            paras = clean_wikitext(wikitext)
+        paras = page_paras(cfg["api"], link)
         data["chapters"] = [c for c in data["chapters"] if c["title"] != link]
         have.pop(link, None)
         data["chapters"].append({
@@ -165,6 +189,8 @@ def run(refresh=False):
             "url": f"https://pt.wikisource.org/wiki/{requests.utils.quote(link.replace(' ', '_'))}",
             "paras": paras,
         })
-        with open("data/chapters.json", "w", encoding="utf-8") as f:
+        import os
+        os.makedirs(os.path.dirname(ch_path), exist_ok=True)
+        with open(ch_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=1)
     print(f"chapters: {len(data['chapters'])}")
